@@ -4,7 +4,7 @@ Fork from [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-so
 
 !! DO NOT USE IN COMBINATION WITH [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) !!
 
-To update, just pull all latest commits from [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) to this repo and do a git pull in the apps directory of nextcloud.
+To update, just pull all latest commits from [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) to this repo and do a git pull in the directory of the app in the nextcloud instance.
 
 ## Readme of zorn-v/nextcloud-social-login
 
