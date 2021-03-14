@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GITHUB_REPO=zorn-v/nextcloud-social-login
+GITHUB_REPO=fichtels-iag/nextcloud-social-login
 APP_NAME=sociallogin
 NC_KEY_FILE=~/.nextcloud/certificates/$APP_NAME.key
 

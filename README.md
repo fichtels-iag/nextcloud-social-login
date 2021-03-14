@@ -1,4 +1,12 @@
-# Social login
+# Fichtels Social login
+
+Fork from [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) with a little modification to work with the fichtels sso system.
+
+!! DO NOT USE IN COMBINATION WITH [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) !!
+
+To update, just pull all latest commits from [zorn-v/nextcloud-social-login](https://github.com/zorn-v/nextcloud-social-login) to this repo and do a git pull in the apps directory of nextcloud.
+
+## Readme of zorn-v/nextcloud-social-login
 
 Make possible create users and login via Telegram, OAuth or OpenID
 
