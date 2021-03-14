@@ -105,6 +105,17 @@ class Application extends App implements IBootstrap
             header('Location: ' . $authUrl);
             exit();
         }
+
+        $hideDefaultLogin = $providersCount > 0
+            && !$request->getParam('showDefault')
+            && $config->getAppValue($this->appName, 'hide_default_login');
+        if ($hideDefaultLogin && $request->getPathInfo() === '/login') {
+            Util::addStyle($this->appName, 'hide_default_login');
+            \OC_App::registerLogin([
+                'href' => '#body-login',
+                'name' => $l->t('Log in with username or email'),
+            ]);
+        }
     }
 
     public function preDeleteUser(BeforeUserDeletedEvent $event)

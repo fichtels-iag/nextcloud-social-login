@@ -36,6 +36,7 @@ class ProviderService
         'auto_create_groups',
         'restrict_users_wo_mapped_groups',
         'disable_notify_admins',
+        'hide_default_login',
     ];
     const DEFAULT_PROVIDERS = [
         'google',
@@ -217,6 +218,7 @@ class ProviderService
                     $config = array_merge([
                         'callback' => $callbackUrl,
                         'default_group' => $prov['defaultGroup'],
+                        'orgs' => $prov['orgs'] ?? null,
                     ], $this->applyConfigMapping('default', $prov));
 
                     if (isset($prov['auth_params']) && is_array($prov['auth_params'])) {
@@ -326,6 +328,22 @@ class ProviderService
             }
         }
 
+        if ($provider === 'GitHub' && !empty($config['orgs'])) {
+            $allowedOrgs = array_map('trim', explode(',', $config['orgs']));
+            $username = $adapter->apiRequest('user')->login;
+            $checkOrgs = function () use ($adapter, $allowedOrgs, $username, $config) {
+                foreach ($allowedOrgs as $org) {
+                    try {
+                        $adapter->apiRequest('orgs/'.$org.'/members/'.$username);
+                        return;
+                    } catch (\Exception $e) {}
+                }
+                $this->storage->clear();
+                throw new LoginException($this->l->t('Login is available only to members of the following GitHub organizations: %s', $config['orgs']));
+            };
+            $checkOrgs();
+        }
+
         if (!empty($config['logout_url'])) {
             $this->session->set('sociallogin_logout_url', $config['logout_url']);
         } else {
@@ -412,33 +430,47 @@ class ProviderService
             }
 
             if (isset($profile->data['groups']) && is_array($profile->data['groups'])) {
-                $groupNames = $profile->data['groups'];
+                $groups = $profile->data['groups'];
                 $groupMapping = isset($profile->data['group_mapping']) ? $profile->data['group_mapping'] : null;
                 $userGroups = $this->groupManager->getUserGroups($user);
                 $autoCreateGroups = $this->config->getAppValue($this->appName, 'auto_create_groups');
-                $syncGroupNames = [];
+                $syncGroups = [];
 
-                foreach ($groupNames as $k => $v) {
-                    if ($groupMapping && isset($groupMapping[$v])) {
-                        $syncGroupNames[] = $groupMapping[$v];
+                foreach ($groups as $k => $v) {
+                    if (is_object($v)) {
+                        if (empty($v->gid) && $v->gid !== '0' && $v->gid !== 0) {
+                            continue;
+                        }
+                        $group = $v;
+                    } else {
+                        $group = (object) array('gid' => $v);
                     }
-                    $autoGroup = $newGroupPrefix.$v;
-                    if ($autoCreateGroups || $this->groupManager->groupExists($autoGroup)) {
-                        $syncGroupNames[] = $autoGroup;
+
+                    if ($groupMapping && isset($groupMapping[$group->gid])) {
+                        $syncGroups[] = (object) array('gid' => $groupMapping[$group->gid]);
+                    }
+                    $autoGroup = $newGroupPrefix.$group->gid;
+                    $group->gid = $autoGroup;
+                    if ($autoCreateGroups || $this->groupManager->groupExists($group->gid)) {
+                        $syncGroups[] = $group;
                     }
                 }
 
                 if (!$this->config->getAppValue($this->appName, 'no_prune_user_groups')) {
                     foreach ($userGroups as $group) {
-                        if (!in_array($group->getGID(), $syncGroupNames)) {
+                        if (!in_array($group->getGID(), array_column($syncGroups, 'gid'))) {
                             $group->removeUser($user);
                         }
                     }
                 }
 
-                foreach ($syncGroupNames as $groupName) {
-                    if ($group = $this->groupManager->createGroup($groupName)) {
-                        $group->addUser($user);
+                foreach ($syncGroups as $group) {
+                    if ($newGroup = $this->groupManager->createGroup($group->gid)) {
+                        $newGroup->addUser($user);
+
+                        if(isset($group->displayName)) {
+                            $newGroup->setDisplayName($group->displayName);
+                        }
                     }
                 }
 

@@ -35,6 +35,11 @@ Also nested claims is supported. For example `resource_access.client-id.roles` f
 }
 ```
 
+There is also support for setting the displayName:
+```
+{"roles": [{gid: 1, displayName: "admin"}, {gid: 2, displayName: "user"}]}
+```
+
 
 You can use provider groups in two ways:
 
@@ -43,7 +48,10 @@ You can use provider groups in two ways:
 
 If you want sync groups on every login do not forget to check "Update user profile every login" setting
 
-You can find example how to configure WSO2IS for return roles claim with OIDC at https://medium.com/@dewni.matheesha/claim-mapping-and-retrieving-end-user-information-in-wso2is-cffd5f3937ff
+## Examples for groups
+
+* You can find example how to configure WSO2IS for return roles claim with OIDC [here](https://medium.com/@dewni.matheesha/claim-mapping-and-retrieving-end-user-information-in-wso2is-cffd5f3937ff)
+* [GitLab OIDC allowing specific GitLab groups](https://github.com/zorn-v/nextcloud-social-login/blob/master/docs/sso/gitlab.md)
 
 ## Built-in OAuth providers
 
