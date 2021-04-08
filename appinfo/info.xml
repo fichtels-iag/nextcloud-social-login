@@ -5,7 +5,7 @@
     <name>Fichtels Social Login</name>
     <summary>Social login via OAuth or OpenID</summary>
     <description> </description>
-    <version>4.3.2</version>
+    <version>4.4.1</version>
     <licence>agpl</licence>
     <author>fichtels-iag</author>
     <namespace>SocialLogin</namespace>
