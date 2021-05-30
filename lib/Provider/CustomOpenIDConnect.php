@@ -33,7 +33,7 @@ class CustomOpenIDConnect extends CustomOAuth2
 
         $userProfile = new User\Profile();
         $userProfile->identifier  = $data->get('preferred_username');
-        $userProfile->displayName = $data->get('name') ?: $data->get('preferred_username');
+        $userProfile->displayName = $data->get('preferred_username') ?: $data->get('name');
         $userProfile->photoURL    = $data->get('picture');
         $userProfile->email       = $data->get('email');
         if ($data->exists('street_address')) {
@@ -55,7 +55,7 @@ class CustomOpenIDConnect extends CustomOAuth2
         )) {
             $profile = new Data\Collection( $this->apiRequest($userInfoUrl) );
             if (empty($userProfile->displayName)) {
-                $userProfile->displayName = $profile->get('name') ?: $profile->get('nickname');
+                $userProfile->displayName = $profile->get('preferred_username') ?: $profile->get('nickname') ?: $profile->get('name');
             }
             if (empty($userProfile->photoURL)) {
                 $userProfile->photoURL = $profile->get('picture') ?: $profile->get('avatar');
