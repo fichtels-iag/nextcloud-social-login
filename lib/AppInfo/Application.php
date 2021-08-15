@@ -2,6 +2,8 @@
 
 namespace OCA\SocialLogin\AppInfo;
 
+use OCA\SocialLogin\AlternativeLogin\DefaultLoginShow;
+use OCA\SocialLogin\AlternativeLogin\SocialLogin;
 use OCA\SocialLogin\Db\ConnectedLoginMapper;
 use OCA\SocialLogin\Service\ProviderService;
 use OCP\AppFramework\App;
@@ -14,8 +16,6 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IURLGenerator;
-use OCP\IUser;
-use OCP\IUserManager;
 use OCP\IUserSession;
 use OCP\User\Events\BeforeUserDeletedEvent;
 use OCP\User\Events\UserLoggedOutEvent;
@@ -24,6 +24,7 @@ use OCP\Util;
 class Application extends App implements IBootstrap
 {
     private $appName = 'sociallogin';
+    private $regContext;
 
     public function __construct()
     {
@@ -33,6 +34,8 @@ class Application extends App implements IBootstrap
     public function register(IRegistrationContext $context): void
     {
         require __DIR__ . '/../../3rdparty/autoload.php';
+
+        $this->regContext = $context;
     }
 
     public function boot(IBootContext $context): void
@@ -73,10 +76,11 @@ class Application extends App implements IBootstrap
             if ($provider['appid']) {
                 ++$providersCount;
                 if ($authUrl = $providerService->getAuthUrl($name, $provider['appid'])) {
-                    \OC_App::registerLogIn([
-                        'href' => $authUrl,
-                        'name' => $l->t('Log in with %s', ucfirst($name)),
-                    ]);
+                    SocialLogin::addLogin(
+                        $l->t('Log in with %s', ucfirst($name)),
+                        $authUrl
+                    );
+                    $this->regContext->registerAlternativeLogin(SocialLogin::class);
                 }
             }
         }
@@ -90,11 +94,12 @@ class Application extends App implements IBootstrap
                     'provider' => $provider['name'],
                     'login_redirect_url' => $redirectUrl
                 ]);
-                \OC_App::registerLogIn([
-                    'href' => $authUrl,
-                    'name' => $l->t('Log in with %s', $provider['title']),
-                    'style' => isset($provider['style']) ? $provider['style'] : '',
-                ]);
+                SocialLogin::addLogin(
+                    $l->t('Log in with %s', $provider['title']),
+                    $authUrl,
+                    $provider['style'] ?? ''
+                );
+                $this->regContext->registerAlternativeLogin(SocialLogin::class);
             }
         }
 
@@ -109,15 +114,9 @@ class Application extends App implements IBootstrap
         }
 
         $hideDefaultLogin = $providersCount > 0
-            && PHP_SAPI !== 'cli'
-            && !$request->getParam('showDefault')
             && $config->getAppValue($this->appName, 'hide_default_login');
         if ($hideDefaultLogin && $request->getPathInfo() === '/login') {
-            Util::addStyle($this->appName, 'hide_default_login');
-            \OC_App::registerLogin([
-                'href' => '#body-login',
-                'name' => $l->t('Log in with username or email'),
-            ]);
+            $this->regContext->registerAlternativeLogin(DefaultLoginShow::class);
         }
     }
 
@@ -129,6 +128,6 @@ class Application extends App implements IBootstrap
 
     private function query($className)
     {
-        return $this->getContainer()->query($className);
+        return $this->getContainer()->get($className);
     }
 }
