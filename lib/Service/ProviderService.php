@@ -117,6 +117,7 @@ class ProviderService
                 'access_token_url' => 'tokenUrl',
                 'user_info_url'    => 'userInfoUrl',
             ],
+            'displayname_claim' => 'displayNameClaim',
             'groups_claim'  => 'groupsClaim',
             'group_mapping' => 'groupMapping',
             'logout_url'    => 'logoutUrl',
@@ -508,7 +509,7 @@ class ProviderService
         }
 
         $this->userSession->getSession()->regenerateId();
-		$this->userSession->setTokenProvider($this->tokenProvider);
+        $this->userSession->setTokenProvider($this->tokenProvider);
         $this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
 
         $token = $this->tokenProvider->getToken($this->userSession->getSession()->getId());
