@@ -7,6 +7,7 @@ use Hybridauth\User\Profile;
 use Hybridauth\HttpClient\Curl;
 use OC\Authentication\Token\DefaultTokenProvider;
 use OC\User\LoginException;
+use OCA\SocialLogin\Provider\CustomDiscourse;
 use OCA\SocialLogin\Provider\CustomOAuth1;
 use OCA\SocialLogin\Provider\CustomOAuth2;
 use OCA\SocialLogin\Provider\CustomOpenIDConnect;
@@ -53,18 +54,21 @@ class ProviderService
         'slack',
         'telegram',
         'mailru',
+        'yandex',
     ];
 
     const TYPE_OPENID = 'openid';
     const TYPE_OAUTH1 = 'custom_oauth1';
     const TYPE_OAUTH2 = 'custom_oauth2';
     const TYPE_OIDC = 'custom_oidc';
+    const TYPE_DISCOURSE = 'custom_discourse';
 
     const TYPE_CLASSES = [
         self::TYPE_OPENID => Provider\OpenID::class,
         self::TYPE_OAUTH1 => CustomOAuth1::class,
         self::TYPE_OAUTH2 => CustomOAuth2::class,
         self::TYPE_OIDC => CustomOpenIDConnect::class,
+        self::TYPE_DISCOURSE => CustomDiscourse::class,
     ];
 
     private $configMapping = [
@@ -102,6 +106,7 @@ class ProviderService
                 'profile_url'    => 'profileUrl',
             ],
             'profile_fields' => 'profileFields',
+            'displayname_claim' => 'displayNameClaim',
             'groups_claim'  => 'groupsClaim',
             'group_mapping' => 'groupMapping',
             'logout_url'    => 'logoutUrl',
@@ -119,6 +124,16 @@ class ProviderService
             ],
             'displayname_claim' => 'displayNameClaim',
             'groups_claim'  => 'groupsClaim',
+            'group_mapping' => 'groupMapping',
+            'logout_url'    => 'logoutUrl',
+        ],
+        self::TYPE_DISCOURSE => [
+            'keys' => [
+                'secret' => 'ssoSecret',
+            ],
+            'endpoints' => [
+                'base_url'    => 'baseUrl',
+            ],
             'group_mapping' => 'groupMapping',
             'logout_url'    => 'logoutUrl',
         ],
@@ -225,6 +240,9 @@ class ProviderService
     public function handleDefault($provider)
     {
         $config = [];
+        $scopes = [
+            'discord' => 'identify email guilds',
+        ];
         $providers = json_decode($this->config->getAppValue($this->appName, 'oauth_providers'), true) ?: [];
         if (is_array($providers) && in_array($provider, array_keys($providers))) {
             foreach ($providers as $name => $prov) {
@@ -234,7 +252,12 @@ class ProviderService
                         'callback' => $callbackUrl,
                         'default_group' => $prov['defaultGroup'],
                         'orgs' => $prov['orgs'] ?? null,
+                        'guilds' => $prov['guilds'] ?? null,
                     ], $this->applyConfigMapping('default', $prov));
+
+                    if (isset($scopes[$name])) {
+                        $config['scope'] = $scopes[$name];
+                    }
 
                     if (isset($prov['auth_params']) && is_array($prov['auth_params'])) {
                         foreach ($prov['auth_params'] as $k => $v) {
@@ -316,6 +339,9 @@ class ProviderService
             $curlOptions[CURLOPT_TIMEOUT] = $httpClientConfig['timeout'];
             $curlOptions[CURLOPT_CONNECTTIMEOUT] = $httpClientConfig['timeout'];
         }
+        if (isset($httpClientConfig['proxy'])) {
+            $curlOptions[CURLOPT_PROXY] = $httpClientConfig['proxy'];
+        }
         if ($curlOptions) {
             $config['curl_options'] = $curlOptions;
         }
@@ -357,6 +383,21 @@ class ProviderService
                 throw new LoginException($this->l->t('Login is available only to members of the following GitHub organizations: %s', $config['orgs']));
             };
             $checkOrgs();
+        }
+
+        if ($provider === 'discord' && !empty($config['guilds'])) {
+            $allowedGuilds = array_map('trim', explode(',', $config['guilds']));
+            $userGuilds = $adapter->apiRequest('users/@me/guilds');
+            $checkGuilds = function () use ($allowedGuilds, $userGuilds, $config) {
+                foreach ($userGuilds as $guild) {
+                    if (in_array($guild->id ?? null, $allowedGuilds)) {
+                        return;
+                    }
+                }
+                $this->storage->clear();
+                throw new LoginException($this->l->t('Login is available only to members of the following Discord guilds: %s', $config['guilds']));
+            };
+            $checkGuilds();
         }
 
         if (!empty($config['logout_url'])) {
@@ -438,7 +479,11 @@ class ProviderService
 
         if ($updateUserProfile) {
             $user->setDisplayName($profile->displayName ?: $profile->identifier);
-            $user->setEMailAddress((string)$profile->email);
+            if (method_exists($user, 'setSystemEMailAddress')) {
+                $user->setSystemEMailAddress((string)$profile->email);
+            } else {
+                $user->setEMailAddress((string)$profile->email);
+            }
 
             if ($profile->photoURL) {
                 $curl = new Curl();
@@ -496,10 +541,10 @@ class ProviderService
 
             }
 
-            if (isset($profile->address)) {
-                $account = $this->accountManager->getUser($user);
-                $account['address']['value'] = $profile->address;
-                $this->accountManager->updateUser($user, $account);
+            if (isset($profile->address) && method_exists($this->accountManager, 'updateAccount')) {
+                $account = $this->accountManager->getAccount($user);
+                $account->setProperty(IAccountManager::PROPERTY_ADDRESS, $profile->address, IAccountManager::SCOPE_PRIVATE, IAccountManager::NOT_VERIFIED);
+                $this->accountManager->updateAccount($account);
             }
 
             $defaultGroup = $profile->data['default_group'];
