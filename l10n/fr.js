@@ -1,16 +1,18 @@
 OC.L10N.register(
     "sociallogin",
     {
-        "Disable auto create new users": "Désactiver la création automatique de nouveaux utilisateurs",
-        "Allow users to connect social logins with their account": "Autoriser les utilisateurs existants à se connecter via social login",
-        "Prevent creating an account if the email address exists in another account": "Empêcher la création d'un compte si l'adresse e-mail existe déjà dans un autre compte",
-
-        "None": "Aucun",
-        "Save": "Sauvegarder",
-
-        "Settings for social login successfully saved": "Paramètres sauvegardés avec succès",
-        "Do you really want to remove {providerTitle} provider ?": "Voulez-vous vraiment supprimer fournisseur {providerTitle} ?",
-        "Some error occurred while saving settings": "Erreur lors de la sauvegarde des paramètres",
-        "Confirm remove": "Confirmer la suppression"
-    },
-    "nplurals=2; plural=(n > 1);");
+    "Log in with username or email" : "Se connecter avec un nom d'utilisateur ou une adresse e-mail",
+    "Provider name cannot be empty" : "Le nom du fournisseur ne peut pas être vide",
+    "New user created" : "Nouvel utilisateur créé",
+    "Create users with disabled account" : "Créer les utilisateurs avec des comptes désactivés",
+    "Internal name" : "Nom interne",
+    "Title" : "Fonction",
+    "Logout URL (optional)" : "URL après déconnexion (optionnelle)",
+    "Client Id" : "Id client",
+    "Client Secret" : "Secret du client",
+    "Scope" : "Portée",
+    "Profile url" : "URL du profil",
+    "Consumer key" : "La clé consommateur",
+    "Available providers" : "Fournisseurs disponibles"
+},
+"nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
