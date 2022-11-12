@@ -30,7 +30,7 @@
         <label>
           {{ t(appName, 'Button style') }}<br/>
           <select :name="'custom_providers['+provType+']['+k+'][style]'">
-            <option value="">{{ t('None') }}</option>
+            <option value="">{{ t(appName, 'None') }}</option>
             <option v-for="(styleTitle, style) in styleClass" :key="style" :value="style" :selected="provider.style === style">
               {{ styleTitle }}
             </option>
@@ -40,7 +40,7 @@
         <label>
           {{ t(appName, 'Default group') }}<br/>
           <select :name="'custom_providers['+provType+']['+k+'][defaultGroup]'">
-            <option value="">{{ t('None') }}</option>
+            <option value="">{{ t(appName, 'None') }}</option>
             <option v-for="group in groups" :key="group" :value="group" :selected="provider.defaultGroup === group">
               {{ group }}
             </option>
@@ -73,15 +73,17 @@
         <input type="text" :name="'providers['+name+'][appid]'" :value="provider.appid"/>
       </label>
       <br/>
-      <label>
-        {{ t(appName, 'Secret') }}<br/>
-        <input type="password" :name="'providers['+name+'][secret]'" :value="provider.secret"/>
-      </label>
-      <br/>
+      <template v-if="name !== 'PlexTv'">
+        <label>
+          {{ t(appName, 'Secret') }}<br/>
+          <input type="password" :name="'providers['+name+'][secret]'" :value="provider.secret"/>
+        </label>
+        <br/>
+      </template>
       <label>
         {{ t(appName, 'Default group') }}<br/>
         <select :name="'providers['+name+'][defaultGroup]'">
-          <option value="">{{ t('None') }}</option>
+          <option value="">{{ t(appName, 'None') }}</option>
           <option v-for="group in groups" :key="group" :value="group" :selected="provider.defaultGroup === group">
             {{ group }}
           </option>
@@ -123,13 +125,12 @@
 </template>
 
 <script>
-import '@nextcloud/dialogs/styles/toast.scss'
-import { showError, showInfo } from '@nextcloud/dialogs'
 import { imagePath } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import optionsTitles from './settings/options-titles'
 import providerTypes from './settings/provider-types'
 import styleClass from './settings/style-class'
+import { appName, showError, showInfo } from '../common'
 
 export default {
   data: function () {
@@ -161,13 +162,8 @@ export default {
         }
       }
     }
-
+    data.appName = appName
     return data
-  },
-  computed: {
-    appName: function () {
-      return this.app_name
-    },
   },
   mounted: function () {
     var disableReg = document.getElementById('opt_disable_registration')
@@ -180,11 +176,8 @@ export default {
     disableReg.onchange()
   },
   methods: {
-    t: function (appName, text, vars) {
-      return t(this.app_name, text, vars)
-    },
     imagePath: function (file) {
-      return imagePath(this.app_name, file)
+      return imagePath(appName, file)
     },
     saveSettings: function (e) {
       var vm = this
@@ -196,13 +189,13 @@ export default {
                 vm.custom_providers[provType][i].isNew = false
               }
             }
-            showInfo(vm.t(vm.appName, 'Settings for social login successfully saved'))
+            showInfo(vm.t(appName, 'Settings for social login successfully saved'))
           } else {
             showError(res.data.message)
           }
         })
         .catch(function () {
-          showError(vm.t(vm.appName, 'Some error occurred while saving settings'))
+          showError(vm.t(appName, 'Some error occurred while saving settings'))
         })
     },
     providerAdd: function (provType) {
@@ -223,8 +216,8 @@ export default {
       if (needConfirm()) {
         const vm = this
         OC.dialogs.confirm(
-          this.t(this.appName, 'Do you really want to remove {providerTitle} provider ?', {'providerTitle': providerTitle}),
-          this.t(this.appName, 'Confirm remove'),
+          this.t(appName, 'Do you really want to remove {providerTitle} provider ?', {'providerTitle': providerTitle}),
+          this.t(appName, 'Confirm remove'),
           function (confirmed) {
             if (!confirmed) {
               return;

@@ -1,4 +1,7 @@
 { "translations": {
+    "Save" : "Αποθήκευση",
+    "None" : "Καμμία",
+    "Secret" : "Μυστικός",
     "Title" : "Τίτλος",
     "Client Secret" : "Μυστικό πελάτη",
     "Scope" : "Εύρος",

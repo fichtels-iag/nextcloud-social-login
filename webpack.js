@@ -18,15 +18,12 @@ module.exports = {
     maxAssetSize: 256000,
     maxEntrypointSize: 256000,
   },
+  stats: { modulesSpace: 0 },
   module: {
     rules: [
       {
-        test: /\.svg$/,
-        loader: 'svg-inline-loader'
-      },
-      {
         test: /\.css$/,
-        use: ['vue-style-loader', 'css-loader']
+        use: ['style-loader', 'css-loader']
       },
       {
         test: /\.scss$/,

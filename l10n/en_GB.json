@@ -1,0 +1,9 @@
+{ "translations": {
+    "Save" : "Save",
+    "None" : "None",
+    "Secret" : "Secret",
+    "Title" : "Title",
+    "Client Secret" : "Client Secret",
+    "Scope" : "Scope"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}
