@@ -18,7 +18,7 @@
     "Auto creating new users is disabled" : "Das automatische Erstellen neuer Benutzer ist deaktiviert",
     "Email already registered" : "E-Mailadresse bereits registriert",
     "New user created" : "Neuer Benutzer erstellt",
-    "User %s (%s) just created via social login" : "Benutzer %s (%s) gerade über Social Login erstellt",
+    "User %s (%s) just created via social login" : "Benutzer %s (%s) wurde über Social Login erstellt",
     "Social login" : "Social-Login",
     "Social Login" : "Social-Login",
     "Social login via OAuth or OpenID" : "Social Login über OAuth oder OpenID",
@@ -28,7 +28,7 @@
     "Default group" : "Standardgruppe",
     "Add group mapping" : "Gruppenzuordnung hinzufügen",
     "App id" : "App-Id",
-    "Secret" : "Geheim",
+    "Secret" : "Geheimnis",
     "Allow login only from specified domain" : "Anmeldung nur von der angegebenen Domain erlauben",
     "Allow login only for specified organizations" : "Anmeldung nur für angegebene Organisationen zulassen",
     "Allow login only for specified workspace" : "Anmeldung nur für den angegebenen Workspace zulassen",
@@ -60,7 +60,7 @@
     "Client Id" : "Client-ID",
     "Client Secret" : "Geheime Zeichenkette des Clients",
     "Scope" : "Anwendungsbereich",
-    "Groups claim (optional)" : "Anspruch auf Gruppen (optional)",
+    "Groups claim (optional)" : "Gruppen beanspruchen (optional)",
     "Identifier url" : "Identifikator-URL",
     "Custom OAuth2" : "Benutzerdefiniertes OAuth2",
     "API Base URL" : "API-Basis-URL",
@@ -77,7 +77,7 @@
     "Base url" : "Basis-URL",
     "SSO Secret" : "SSO-Geheimnis",
     "Disable password confirmation on settings change" : "Passwortbestätigung bei Einstellungsänderung deaktivieren",
-    "Social login connect" : "Soziale Anmeldung verbinden",
+    "Social login connect" : "Mittels Social-Anmeldung verbinden",
     "Available providers" : "Verfügbare Anbieter"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
