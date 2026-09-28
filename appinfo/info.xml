@@ -5,7 +5,7 @@
     <name>Fichtels Social Login</name>
     <summary>Social login via OAuth or OpenID</summary>
     <description> </description>
-    <version>5.5.3</version>
+    <version>6.5.5</version>
     <licence>agpl</licence>
     <author>fichtels-iag</author>
     <namespace>SocialLogin</namespace>
@@ -16,7 +16,7 @@
     <repository>https://github.com/fichtels-iag/nextcloud-social-login</repository>
     <screenshot>https://raw.githubusercontent.com/fichtels-iag/nextcloud-social-login/master/appinfo/screenshot.png</screenshot>
     <dependencies>
-        <nextcloud min-version="23" max-version="99" />
+        <nextcloud min-version="29" max-version="99" />
     </dependencies>
     <settings>
         <admin>OCA\SocialLogin\Settings\AdminSettings</admin>

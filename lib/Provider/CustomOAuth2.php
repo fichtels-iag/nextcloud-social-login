@@ -15,9 +15,9 @@ class CustomOAuth2 extends OAuth2
 
     public function __construct(
         $config = [],
-        HttpClientInterface $httpClient = null,
-        StorageInterface $storage = null,
-        LoggerInterface $logger = null
+        ?HttpClientInterface $httpClient = null,
+        ?StorageInterface $storage = null,
+        ?LoggerInterface $logger = null
     ) {
         parent::__construct($config, $httpClient, $storage, $logger);
         $this->providerId = $this->clientId;
@@ -39,19 +39,34 @@ class CustomOAuth2 extends OAuth2
             $profileUrl .= (strpos($profileUrl, '?') !== false ? '&' : '?') . 'fields=' . implode(',', $profileFields);
         }
 
-        $response = $this->apiRequest($profileUrl);
+        $response = $this->apiRequest(
+            $profileUrl,
+            'GET', // method,
+            [], // parameters
+            ["X-Scope" => $this->config->get('scope')] // headers
+        );
+        if (isset($response->data) && is_object($response->data)) {
+            foreach ($response->data as $key => $value) {
+                if (!isset($response->$key)) {
+                    $response->$key = $value;
+                }
+            }
+        }
         if (isset($response->ocs->data)) {
             $response = $response->ocs->data;
         }
         if (!isset($response->identifier)) {
             $response->identifier = $response->id
                 ?? $response->ID
-                ?? $response->data->id
+                ?? $response->union_id
+                ?? $response->open_id
                 ?? $response->user_id
                 ?? $response->userid
                 ?? $response->userId
                 ?? $response->oauth_user_id
                 ?? $response->sub
+                ?? $response->client_id
+                ?? $response->uid
                 ?? null
             ;
         }
@@ -59,6 +74,7 @@ class CustomOAuth2 extends OAuth2
         $response->displayName = $response->$displayNameClaim
             ?? $response->displayName
             ?? $response->username
+            ?? $response->name
             ?? null
         ;
 
@@ -88,23 +104,41 @@ class CustomOAuth2 extends OAuth2
     protected function getGroups(Data\Collection $data)
     {
         if ($groupsClaim = $this->config->get('groups_claim')) {
-            $nestedClaims = explode('.', $groupsClaim);
-            $claim = array_shift($nestedClaims);
-            $groups = $data->get($claim);
-            while (count($nestedClaims) > 0) {
-                $claim = array_shift($nestedClaims);
-                if (!isset($groups->{$claim})) {
-                    $groups = [];
-                    break;
+            $getSingleClaim = function ($groupsClaim) use ($data) {
+                // First, attempt to get groups using the full namespace directly.
+                $groups = $data->get($groupsClaim);
+
+                // If not found, fall back to the original logic with path splitting.
+                if ($groups === null) {
+                    // Assume groups_claim could be composed of dot-separated subpaths.
+                    $nestedClaims = str_getcsv($groupsClaim, '.', '"');
+                    $claim = array_shift($nestedClaims);
+                    $groups = $data->get($claim);
+
+                    while (count($nestedClaims) > 0) {
+                        $claim = array_shift($nestedClaims);
+                        if (!isset($groups->{$claim})) {
+                            $groups = [];
+                            break;
+                        }
+                        $groups = $groups->{$claim};
+                    }
                 }
-                $groups = $groups->{$claim};
+
+                // Convert groups to array if necessary
+                if (is_array($groups)) {
+                    return $groups;
+                } elseif (is_string($groups)) {
+                    return $this->strToArray($groups);
+                }
+
+                return [];
+            };
+            $result = [];
+            foreach ($this->strToArray($groupsClaim) as $claim) {
+                $result = array_merge($result, $getSingleClaim($claim));
             }
-            if (is_array($groups)) {
-                return $groups;
-            } elseif (is_string($groups)) {
-                return $this->strToArray($groups);
-            }
-            return [];
+            return $result;
         }
         return null;
     }

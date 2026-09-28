@@ -16,6 +16,8 @@ use OCA\SocialLogin\Provider\CustomOpenIDConnect;
 use OCA\SocialLogin\Db\ConnectedLoginMapper;
 use OCP\Accounts\IAccountManager;
 use OCP\AppFramework\Http\RedirectResponse;
+use OCP\Authentication\Token\IToken;
+use OCP\IAppConfig;
 use OCP\IAvatarManager;
 use OCP\IConfig;
 use OCP\IGroupManager;
@@ -42,8 +44,10 @@ class ProviderService
         'disable_notify_admins',
         'hide_default_login',
         'button_text_wo_prefix',
+        'hide_social_login',
     ];
     const DEFAULT_PROVIDERS = [
+        'apple',
         'google',
         'amazon',
         'facebook',
@@ -78,6 +82,10 @@ class ProviderService
             'keys' => [
                 'id' => 'appid',
                 'secret' => 'secret',
+                // Apple below
+                'team_id' => 'teamId',
+                'key_id' => 'keyId',
+                'key_content' => 'keyContent',
             ],
         ],
         self::TYPE_OPENID => [
@@ -141,71 +149,25 @@ class ProviderService
         ],
     ];
 
-    /** @var string */
-    private $appName;
-    /** @var IRequest */
-    private $request;
-    /** @var IConfig */
-    private $config;
-    /** @var IURLGenerator */
-    private $urlGenerator;
-    /** @var SessionStorage */
-    private $storage;
-    /** @var IUserManager */
-    private $userManager;
-    /** @var IUserSession */
-    private $userSession;
-    /** @var IAvatarManager */
-    private $avatarManager;
-    /** @var IGroupManager */
-    private $groupManager;
-    /** @var ISession */
-    private $session;
-    /** @var IL10N */
-    private $l;
-    /** @var IMailer */
-    private $mailer;
-    /** @var ConnectedLoginMapper */
-    private $socialConnect;
-    /** @var IAccountManager */
-    private $accountManager;
-    /** @var IProvider */
-    private $tokenProvider;
-
 
     public function __construct(
-        $appName,
-        IRequest $request,
-        IConfig $config,
-        IURLGenerator $urlGenerator,
-        SessionStorage $storage,
-        IUserManager $userManager,
-        IUserSession $userSession,
-        IAvatarManager $avatarManager,
-        IGroupManager $groupManager,
-        ISession $session,
-        IL10N $l,
-        IMailer $mailer,
-        ConnectedLoginMapper $socialConnect,
-        IAccountManager $accountManager,
-        IProvider $tokenProvider
-    ) {
-        $this->appName = $appName;
-        $this->request = $request;
-        $this->config = $config;
-        $this->urlGenerator = $urlGenerator;
-        $this->storage = $storage;
-        $this->userManager = $userManager;
-        $this->userSession = $userSession;
-        $this->avatarManager = $avatarManager;
-        $this->groupManager = $groupManager;
-        $this->session = $session;
-        $this->l = $l;
-        $this->mailer = $mailer;
-        $this->socialConnect = $socialConnect;
-        $this->accountManager = $accountManager;
-        $this->tokenProvider = $tokenProvider;
-    }
+        private $appName,
+        private IRequest $request,
+        private IConfig $config,
+        private IAppConfig $appConfig,
+        private IURLGenerator $urlGenerator,
+        private SessionStorage $storage,
+        private IUserManager $userManager,
+        private IUserSession $userSession,
+        private IAvatarManager $avatarManager,
+        private IGroupManager $groupManager,
+        private ISession $session,
+        private IL10N $l,
+        private IMailer $mailer,
+        private ConnectedLoginMapper $socialConnect,
+        private IAccountManager $accountManager,
+        private IProvider $tokenProvider
+    ) {}
 
     public function getLoginClass($name, $provider = [], $type = null)
     {
@@ -220,7 +182,7 @@ class ProviderService
         $class = class_exists($className) ? $className : SocialLogin::class;
         if (method_exists($class, 'addLogin')) {
             $title = $provider['title'] ?? ucfirst($name);
-            $label = $this->config->getAppValue($this->appName, 'button_text_wo_prefix')
+            $label = $this->appConfig->getValueBool($this->appName, 'button_text_wo_prefix')
                 ? $title
                 : $this->l->t('Log in with %s', $title);
             $class::addLogin($label, $authUrl, $provider['style'] ?? '');
@@ -231,37 +193,44 @@ class ProviderService
     public function handleDefault($provider)
     {
         $config = [];
-        $scopes = [
-            'discord' => 'identify email guilds guilds.members.read',
-        ];
-        $providers = json_decode($this->config->getAppValue($this->appName, 'oauth_providers'), true) ?: [];
-        if (is_array($providers) && in_array($provider, array_keys($providers))) {
-            foreach ($providers as $name => $prov) {
-                if ($name === $provider) {
-                    $callbackUrl = $this->urlGenerator->linkToRouteAbsolute($this->appName.'.login.oauth', ['provider' => $provider]);
-                    $config = array_merge([
-                        'callback' => $callbackUrl,
-                        'default_group' => $prov['defaultGroup'],
-                    ], $this->applyConfigMapping('default', $prov));
-                    $opts = ['orgs', 'workspace', 'guilds', 'groupMapping'];
-                    foreach ($opts as $opt) {
-                        if (isset($prov[$opt])) {
-                            $config[$opt] = $prov[$opt];
-                        }
-                    }
+        $providers = $this->appConfig->getValueArray($this->appName, 'oauth_providers');
+        if (isset($providers[$provider])) {
+            $prov = $providers[$provider];
 
-                    if (isset($scopes[$name])) {
-                        $config['scope'] = $scopes[$name];
-                    }
+            $callbackUrl = $this->urlGenerator->linkToRouteAbsolute($this->appName.'.login.oauth', ['provider' => $provider]);
+            $config = array_merge([
+                'callback' => $callbackUrl,
+                'default_group' => $prov['defaultGroup'],
+            ], $this->applyConfigMapping('default', $prov));
 
-                    if (isset($prov['auth_params']) && is_array($prov['auth_params'])) {
-                        foreach ($prov['auth_params'] as $k => $v) {
-                            if (!empty($v)) {
-                                $config['authorize_url_parameters'][$k] = $v;
-                            }
-                        }
+            // Set scopes for special cases
+            // Discord: for limiting to guilds https://discord.com/developers/docs/topics/oauth2#scopes
+            // GitHub: for limiting to Organizations but include hidden Members (readOrg)
+            switch ($provider) {
+                case 'discord':
+                    $config['scope'] = 'identify email guilds guilds.members.read';
+                    break;
+                case 'GitHub':
+                    if (!empty($prov['orgs']) && !empty($prov['readOrg'])) {
+                        $config['scope'] = 'user:email read:org';
                     }
                     break;
+                default:
+                    break;
+            }
+
+            $opts = ['orgs', 'workspace', 'guilds', 'groupMapping', 'useGuildNames', 'readOrg'];
+            foreach ($opts as $opt) {
+                if (isset($prov[$opt])) {
+                    $config[$opt] = $prov[$opt];
+                }
+            }
+
+            if (isset($prov['auth_params']) && is_array($prov['auth_params'])) {
+                foreach ($prov['auth_params'] as $k => $v) {
+                    if (!empty($v)) {
+                        $config['authorize_url_parameters'][$k] = $v;
+                    }
                 }
             }
         }
@@ -271,7 +240,7 @@ class ProviderService
     public function handleCustom($type, $provider)
     {
         $config = [];
-        $providers = json_decode($this->config->getAppValue($this->appName, 'custom_providers'), true) ?: [];
+        $providers = $this->appConfig->getValueArray($this->appName, 'custom_providers');
         if (isset($providers[$type])) {
             foreach ($providers[$type] as $prov) {
                 if ($prov['name'] === $provider) {
@@ -409,13 +378,19 @@ class ProviderService
             $checkGuilds = function () use ($allowedGuilds, $userGuilds, $config) {
                 foreach ($userGuilds as $guild) {
                     if (in_array($guild->id ?? null, $allowedGuilds)) {
-                        return;
+                        return $guild->id;
                     }
                 }
                 $this->storage->clear();
                 throw new LoginException($this->l->t('Login is available only to members of the following Discord guilds: %s', $config['guilds']));
             };
-            $checkGuilds();
+            $matchingGuildId = $checkGuilds();
+
+            // Use discord guild member nickname as display name
+            if (!empty($config['useGuildNames']) && $matchingGuildId) {
+                $guildMember = $adapter->apiRequest('users/@me/guilds/' . $matchingGuildId . '/member' );
+                $profile->displayName = $guildMember->nick ?? $profile->displayName;
+            }
 
             if ($allowedGuilds && !empty($config['groupMapping'])) {
                 // read Discord roles into NextCloud groups
@@ -463,7 +438,7 @@ class ProviderService
             $user = $this->userManager->get($connectedUid);
         }
         if ($this->userSession->isLoggedIn()) {
-            if (!$this->config->getAppValue($this->appName, 'allow_login_connect')) {
+            if (!$this->appConfig->getValueBool($this->appName, 'allow_login_connect')) {
                 throw new LoginException($this->l->t('Social login connect is disabled'));
             }
             if (null !== $user) {
@@ -474,11 +449,11 @@ class ProviderService
             return new RedirectResponse($this->urlGenerator->linkToRoute('settings.PersonalSettings.index', ['section'=>'sociallogin']));
         }
 
-        if ($this->config->getAppValue($this->appName, 'restrict_users_wo_assigned_groups') && empty($profile->data['groups'])) {
+        if ($this->appConfig->getValueBool($this->appName, 'restrict_users_wo_assigned_groups') && empty($profile->data['groups'])) {
             throw new LoginException($this->l->t('Users without assigned groups is not allowed to login, please contact support'));
         }
 
-        if ($this->config->getAppValue($this->appName, 'restrict_users_wo_mapped_groups') && isset($profile->data['group_mapping'])) {
+        if ($this->appConfig->getValueBool($this->appName, 'restrict_users_wo_mapped_groups') && isset($profile->data['group_mapping'])) {
             $groups = isset($profile->data['groups']) ? $profile->data['groups'] : [];
             $mappedGroups = array_intersect($groups, array_keys($profile->data['group_mapping']));
             if (!$mappedGroups) {
@@ -486,30 +461,30 @@ class ProviderService
             }
         }
 
-        $updateUserProfile = $this->config->getAppValue($this->appName, 'update_profile_on_login');
+        $updateUserProfile = $this->appConfig->getValueBool($this->appName, 'update_profile_on_login');
         $userPassword = '';
 
         if (null === $user) {
-            if ($this->config->getAppValue($this->appName, 'disable_registration')) {
+            if ($this->appConfig->getValueBool($this->appName, 'disable_registration')) {
                 throw new LoginException($this->l->t('Auto creating new users is disabled'));
             }
             if (
-                $profile->email && $this->config->getAppValue($this->appName, 'prevent_create_email_exists')
+                $profile->email && $this->appConfig->getValueBool($this->appName, 'prevent_create_email_exists')
                 && count($this->userManager->getByEmail($profile->email)) !== 0
             ) {
                 throw new LoginException($this->l->t('Email already registered'));
             }
-            $userPassword = substr(base64_encode(random_bytes(64)), 0, 30);
+            $userPassword = '1@aA'.substr(base64_encode(random_bytes(64)), 0, 30);
             $user = $this->userManager->createUser($uid, $userPassword);
 
-            if ($this->config->getAppValue($this->appName, 'create_disabled_users')) {
+            if ($this->appConfig->getValueBool($this->appName, 'create_disabled_users')) {
                 $user->setEnabled(false);
             }
 
             $this->config->setUserValue($uid, $this->appName, 'disable_password_confirmation', 1);
             $updateUserProfile = true;
 
-            if (!$this->config->getAppValue($this->appName, 'disable_notify_admins')) {
+            if (!$this->appConfig->getValueBool($this->appName, 'disable_notify_admins')) {
                 $this->notifyAdmins($uid, $profile->displayName ?: $profile->identifier, $profile->data['default_group']);
             }
         }
@@ -531,7 +506,7 @@ class ProviderService
                 $groups = $profile->data['groups'];
                 $groupMapping = $profile->data['group_mapping'] ?? null;
                 $userGroups = $this->groupManager->getUserGroups($user);
-                $autoCreateGroups = $this->config->getAppValue($this->appName, 'auto_create_groups');
+                $autoCreateGroups = $this->appConfig->getValueBool($this->appName, 'auto_create_groups');
                 $syncGroups = [];
 
                 foreach ($groups as $k => $v) {
@@ -554,7 +529,7 @@ class ProviderService
                     }
                 }
 
-                if (!$this->config->getAppValue($this->appName, 'no_prune_user_groups')) {
+                if (!$this->appConfig->getValueBool($this->appName, 'no_prune_user_groups')) {
                     foreach ($userGroups as $group) {
                         if (!in_array($group->getGID(), array_column($syncGroups, 'gid'))) {
                             $group->removeUser($user);
@@ -593,7 +568,7 @@ class ProviderService
             }
 
             $defaultGroup = $profile->data['default_group'];
-            if ($defaultGroup && $group = $this->groupManager->get($defaultGroup)) {
+            if ($defaultGroup && ($group = $this->groupManager->get($defaultGroup)) && !$group->inGroup($user)) {
                 $group->addUser($user);
             }
         }
@@ -604,6 +579,16 @@ class ProviderService
         $this->userSession->createRememberMeToken($user);
 
         $token = $this->tokenProvider->getToken($this->userSession->getSession()->getId());
+        // needed since NC 30.0.3
+        if (
+            $this->config->getUserValue($user->getUid(), $this->appName, 'disable_password_confirmation')
+            && defined(IToken::class.'::SCOPE_SKIP_PASSWORD_VALIDATION')
+        ) {
+            $scope = $token->getScopeAsArray();
+            $scope[IToken::SCOPE_SKIP_PASSWORD_VALIDATION] = true;
+            $token->setScope($scope);
+            $this->tokenProvider->updateToken($token);
+        }
         $this->userSession->completeLogin($user, [
             'loginName' => $user->getUID(),
             'password' => $userPassword,
@@ -616,17 +601,44 @@ class ProviderService
         \OC::$server->get(\OCP\Files\IRootFolder::class)->getUserFolder($user->getUID());
 
         if ($redirectUrl = $this->session->get('login_redirect_url')) {
-            if (strpos($redirectUrl, '/') === 0) {
-                // URL relative to the Nextcloud webroot, generate an absolute one
-                $redirectUrl = $this->urlGenerator->getAbsoluteURL($redirectUrl);
-            } // else, this is an absolute URL, leave it as-is
-
-            return new RedirectResponse($redirectUrl);
+            $safeRedirectUrl = $this->getSafeInternalRedirectUrl($redirectUrl);
+            if ($safeRedirectUrl !== null) {
+                return new RedirectResponse($safeRedirectUrl);
+            }
+            // Untrusted (off-site) URL: ignore it and fall through to the default.
         }
 
         $this->session->set('last-password-confirm', time());
 
         return new RedirectResponse($this->urlGenerator->getAbsoluteURL('/'));
+    }
+
+    /**
+     * Resolve a stored `login_redirect_url` to a URL that is guaranteed to point
+     * at this Nextcloud instance, or null if it does not. This prevents an open
+     * redirect: `login_redirect_url` is read from an unauthenticated request and
+     * was previously reflected verbatim into a Location header for any absolute
+     * URL, allowing `.../apps/sociallogin/oauth/<provider>?login_redirect_url=https://evil.example`
+     * to bounce a freshly-authenticated victim off-site.
+     */
+    private function getSafeInternalRedirectUrl(string $redirectUrl): ?string
+    {
+        // Path relative to the Nextcloud webroot, but not a protocol-relative
+        // "//host" or a "/\host" backslash trick that browsers treat as a host.
+        if (strpos($redirectUrl, '/') === 0
+            && strpos($redirectUrl, '//') !== 0
+            && strpos($redirectUrl, '/\\') !== 0
+        ) {
+            return $this->urlGenerator->getAbsoluteURL($redirectUrl);
+        }
+
+        // Absolute URL: only honor it when it targets this very instance.
+        $base = rtrim($this->urlGenerator->getAbsoluteURL('/'), '/');
+        if ($redirectUrl === $base || strpos($redirectUrl, $base . '/') === 0) {
+            return $redirectUrl;
+        }
+
+        return null;
     }
 
     private function notifyAdmins($uid, $displayName, $groupId)
