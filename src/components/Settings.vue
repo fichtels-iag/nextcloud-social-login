@@ -70,13 +70,33 @@
     <div class="provider-settings" v-for="(provider, name) in defaultProviders" :key="name">
       <h2 class="provider-title">
         <img :src="imagePath(name.toLowerCase())" /> {{ name[0].toUpperCase() + name.substring(1) }}
+        <div class="provider-remove" @click="provider.appid = null; defaultVisible.splice(defaultVisible.indexOf(name), 1);">
+          x
+        </div>
       </h2>
       <label>
-        {{ t(appName, 'App id') }}<br/>
+        {{ name === 'apple' ? t(appName, 'Services ID') : t(appName, 'App id') }}<br/>
         <input type="text" :name="'providers['+name+'][appid]'" v-model="provider.appid"/>
       </label>
       <br/>
-      <template v-if="name !== 'PlexTv'">
+      <template v-if="name === 'apple'">
+        <label>
+          {{ t(appName, 'Team ID') }}<br/>
+          <input type="text" :name="'providers['+name+'][teamId]'" v-model="provider.teamId"/>
+        </label>
+        <br/>
+        <label>
+          {{ t(appName, 'Key ID') }}<br/>
+          <input type="password" :name="'providers['+name+'][keyId]'" v-model="provider.keyId"/>
+        </label>
+        <br/>
+        <label>
+          {{ t(appName, 'Key content') }}<br/>
+          <textarea :name="'providers['+name+'][keyContent]'" v-model="provider.keyContent" />
+        </label>
+        <br/>
+      </template>
+      <template v-else-if="name !== 'PlexTv'">
         <label>
           {{ t(appName, 'Secret') }}<br/>
           <input type="password" :name="'providers['+name+'][secret]'" v-model="provider.secret"/>
@@ -108,6 +128,11 @@
           {{ t(appName, 'Allow login only for specified organizations') }}<br/>
           <input type="text" :name="'providers['+name+'][orgs]'" v-model="provider.orgs"/>
         </label>
+        <br/>
+        <label>
+          <input type="checkbox" :name="'providers['+name+'][readOrg]'" :checked="provider.readOrg" />
+          {{ t(appName, 'Allow hidden organization members to register (requests read:org scope)') }}
+        </label>
       </template>
       <template v-if="name === 'BitBucket'">
         <br/>
@@ -121,6 +146,11 @@
         <label>
           {{ t(appName, 'Allow login only for specified guilds') }}<br/>
           <input type="text" :name="'providers['+name+'][guilds]'" v-model="provider.guilds"/>
+        </label>
+        <br/>
+        <label>
+          <input type="checkbox" :name="'providers['+name+'][useGuildNames]'" :checked="!!provider.useGuildNames"/>
+          {{ t(appName, 'Use guild nick') }}
         </label>
       </template>
       <GroupMapping v-if="provider.groupMapping"
@@ -272,14 +302,23 @@ export default {
 </script>
 
 <style scoped>
-  input, select {
-    width: 285px;
+  input, select, textarea {
+    width: 100%;
+  }
+  input[type="checkbox"] {
+    width: 20px;
+    vertical-align: middle;
+  }
+  textarea {
+    resize: none;
+    height: 70px;
   }
   .provider-settings {
     display: inline-block;
     vertical-align: top;
     margin-right: 15px;
     margin-bottom: 20px;
+    min-width: 285px;
   }
   .provider-settings .provider-remove {
     float: right;
@@ -292,6 +331,9 @@ export default {
   input[readonly] {
     background-color: #ebebeb;
     color: rgba(0, 0, 0, 0.4);
+  }
+  .section h2 {
+    display: block;
   }
   .section h2.provider-title {
     margin-bottom: 10px;
